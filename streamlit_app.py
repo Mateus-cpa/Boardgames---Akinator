@@ -5,46 +5,35 @@ import pandas as pd
 import streamlit as st
 from rapidfuzz import process
 
+import kagglehub
+from kagglehub import KaggleDatasetAdapter
 
-DATA_DIRS = [
-    os.path.join(os.getcwd(), "kaggle", "input", "ranked-board-game-data-from-boardgamegeek"),
-    os.path.join(os.getcwd(), "input"),
-    ".",
-    os.path.join(os.getcwd(), "data"),
-]
-
-DATA_FILES = {
-    "games": "basic_data_2023.csv",
-    "mechs": "mechanisms_2023.csv",
-    "themes": "themes_2023.csv",
-    "subdomains": "subdomains_2023.csv",
-}
+import openpyxl
 
 
-@st.cache_data(show_spinner=False)
-def load_csv(name: str) -> pd.DataFrame:
-    paths_to_try = []
-    for data_dir in DATA_DIRS:
-        paths_to_try.append(os.path.join(data_dir, name))
-        paths_to_try.append(os.path.join(data_dir, "ranked-board-game-data-from-boardgamegeek", name))
-    paths_to_try.append(os.path.join("/kaggle/input/ranked-board-game-data-from-boardgamegeek", name))
 
-    for path in paths_to_try:
-        if os.path.exists(path):
-            return pd.read_csv(path, index_col="game_id")
 
-    raise FileNotFoundError(
-        f"Could not find '{name}'. Place it in the working directory or set up the data path.\nTried:\n" + "\n".join(paths_to_try)
+@st.cache_data(show_spinner=True)
+def load_data(name: str) -> pd.DataFrame:
+    path = "database"
+    # Set the path to the file you'd like to load
+    file_path = "database/5k version.xlsx"  # Adjust this to the correct path in your Kaggle dataset
+
+    df = kagglehub.load_dataset(
+    KaggleDatasetAdapter.PANDAS,
+    "doggotheshia/5k-bgg-dataset",
+    file_path, sql_query=None
+    # Provide any additional arguments like 
+    # sql_query or pandas_kwargs. See the 
+    # documenation for more information:
+    # https://github.com/Kaggle/kagglehub/blob/main/README.md#kaggledatasetadapterpandas
     )
 
+    print("First 5 records:", df.head())
+    if os.path.exists(path):
+        return pd.read_csv(path, index_col="game_id")
 
-@st.cache_data(show_spinner=False)
-def load_data():
-    df_games = load_csv(DATA_FILES["games"])
-    df_mechs = load_csv(DATA_FILES["mechs"])
-    df_themes = load_csv(DATA_FILES["themes"])
-    df_subdomains = load_csv(DATA_FILES["subdomains"])
-    return df_games, df_mechs, df_themes, df_subdomains
+        st.error(f"Could not find '{name}'. Place it in the working directory or set up the data path.\nTried:\n" + "\n".join(file_path))
 
 
 def find_similar(query: str, choices, limit: int = 10):
@@ -240,7 +229,7 @@ def main():
     st.write("Uma interface interativa para encontrar jogos de tabuleiro usando dados do BoardGameGeek.")
 
     try:
-        df_games, df_mechs, df_themes, df_subdomains = load_data()
+        df_games = load_data('5k version.xlsx')
     except FileNotFoundError as exc:
         st.error(str(exc))
         return
