@@ -29,14 +29,12 @@ def find_similar(query: str, choices, limit: int = 10):
     results = process.extract(query, choices, limit=limit, score_cutoff=0)
     return [item[0] for item in results]
 
-
 def valid_random_game(df_games: pd.DataFrame):
     valid_ids = df_games.index[df_games["name"].notna()].tolist()
     return random.choice(valid_ids)
 
-
 def build_characteristic_lists(df_games: pd.DataFrame):
-    # listar todas mecânicas em uma lista e pegar os valores únicos
+    # transformar colunas em listas de valores únicos
     mech_labels = [df_games.mechanic.str.split(",").explode().unique().tolist()]
     #st.info(mech_labels)
     theme_labels = [df_games.category.str.split(",").explode().unique().tolist()]
@@ -45,10 +43,13 @@ def build_characteristic_lists(df_games: pd.DataFrame):
     #st.info(subdomain_labels)
     family_labels = [df_games.family.str.split(",").explode().unique().tolist()]
     #st.info(family_labels)
-
-
-    return mech_labels, theme_labels, subdomain_labels, family_labels, mech_labels + theme_labels + subdomain_labels + family_labels
-
+    designer_labels = [df_games.designer.str.split(",").explode().unique().tolist()]
+    artist_labels = [df_games.artist.str.split(",").explode().unique().tolist()]
+    
+    #concatenar todas as características em uma única lista para o menu de seleção
+    all_characteristics = [f"mechanic: {m}" for m in mech_labels[0]] + [f"theme: {t}" for t in theme_labels[0]] + [f"subdomain: {s}" for s in subdomain_labels[0]] + [f"family: {f}" for f in family_labels[0]] + [f"designer: {d}" for d in designer_labels[0]] + [f"artist: {a}" for a in artist_labels[0]]
+    #st.write(all_characteristics)
+    return mech_labels, theme_labels, subdomain_labels, family_labels, all_characteristics
 
 def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
     if wanted_id not in df_games.index:
@@ -70,9 +71,9 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
             "description",
             
             "artist",
+            "average_weight",
             "minplaytime",
             "maxplaytime",
-            "average_weight",
             "age"]
         
         for col in metadata_columns[0:5]:
@@ -91,6 +92,7 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
         similar_mechs_mask = df_games['mechanic'].str.contains(wanted_mechs.split(",")[0].strip(), na=False)
         st.write(df_games[similar_mechs_mask][['name', 'year', 'mechanic']].head(5))
         
+        # falta marcar em azul os similares
         st.subheader("Temas e jogos similares")
         wanted_themes = df_games.category[df_games.index == wanted_id].tolist()[0]
         for theme in wanted_themes.split(","):
@@ -107,7 +109,8 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
         wanted_subdomains = df_games.domain[df_games.index == wanted_id].tolist()[0]
         for sub in wanted_subdomains.split(","):
             st.write(f'- {sub.strip()}')
-        
+            
+        #incluir link
 
 def init_akinator_state(df_games, df_mechs, df_themes, df_subdomains, df_family):
     mech_labels, theme_labels, list_characteristics = build_characteristic_lists(df_mechs, df_themes)
@@ -212,7 +215,7 @@ def run_akinator(df_games, df_mechs, df_themes, df_subdomains):
 
 def main():
     st.set_page_config(page_title="Boardgame Akinator", layout="wide")
-    st.title("Boardgame Akinator")
+    st.title("Navegação BGG")
     st.write("Uma interface interativa para encontrar jogos de tabuleiro usando dados do BoardGameGeek.")
 
     try:
@@ -221,28 +224,28 @@ def main():
         st.error(str(exc))
         return
 
-    min_id = int(df_games.index.min())
-    max_id = int(df_games.index.max())
     list_mechs, list_themes, list_subdomains, list_families, all_characteristics = build_characteristic_lists(df_games)
 
-    page = st.selectbox(
-        "Escolha uma opção",
-        [
+    st.segmented_control(
+        label="Navegue pelo menu:",
+        options=[
             "Buscar por ID",
             "Buscar por nome parecido",
             "Jogo aleatório",
-            "Por mecânica ou tema",
+            "Por característica",
             "Akinator",
         ],
+        key="main_menu"
     )
+    page = st.session_state.get("main_menu", "Por característica")
     
     # -- MENU 1: ID --
     if page == "Buscar por ID":
         wanted_id = st.selectbox("Digite o ID do jogo:", options=df_games.index.tolist())
         #wanted_id = 444
         if st.button("Buscar"):
-            display_game_info(wanted_id, df_games, list_mechs, list_themes)
-        
+            st.session_state.chosen_id = wanted_id
+
     # -- MENU 2: NOME PARECIDO --
     elif page == "Buscar por nome parecido":
         query = st.text_input("Digite o nome ou parte do nome do jogo:")
@@ -251,35 +254,53 @@ def main():
             chosen = st.selectbox("Escolha um jogo", matches)
             if st.button("Mostrar detalhes"):
                 selected_id = int(df_games[df_games["name"] == chosen].index[0])
-                display_game_info(selected_id, df_games, list_mechs, list_themes)
+                st.session_state.chosen_id = selected_id
 
     # -- MENU 3: JOGO ALEATÓRIO --
     elif page == "Jogo aleatório":
         if st.button("Sortear jogo"):
-            random_id = valid_random_game(df_games)
-            display_game_info(random_id, df_games, list_mechs, list_themes)
-
-    elif page == "Por mecânica ou tema":
+            st.session_state.chosen_id = valid_random_game(df_games)
+            
+    # -- MENU 4: POR CARACTERÍSTICA --
+    elif page == "Por característica":
         characteristic = st.selectbox("Escolha uma característica", [""] + all_characteristics)
         if characteristic:
             if st.button("Buscar jogos com essa característica"):
                 field, value = characteristic.split(": ", 1)
                 value = value.strip()
                 if field == "mechanic":
-                    ids = df_mechs.index[df_mechs[value] == 1].tolist()
-                else:
-                    ids = df_themes.index[df_themes[value] == 1].tolist()
-                st.write(f"Encontrados {len(ids)} jogos com {characteristic}.")
-                st.dataframe(df_games.loc[ids, ["name", "year", "weight", "avg_rating"]].head(100))
-                chosen_id = st.selectbox("Selecione um jogo", ids, format_func=lambda x: f"{x} - {df_games.at[x, 'name']}" if x in df_games.index else str(x))
-                if st.button("Ver detalhes do jogo"):
-                    display_game_info(chosen_id, df_games)
+                    ids = df_games.index[df_games["mechanic"].str.contains(value, na=False)].tolist()
+                elif field == "theme":
+                    ids = df_games.index[df_games["category"].str.contains(value, na=False)].tolist()
+                elif field == "subdomain":
+                    ids = df_games.index[df_games["domain"].str.contains(value, na=False)].tolist()
+                elif field == "family":
+                    ids = df_games.index[df_games["family"].str.contains(value, na=False)].tolist()
+                elif field == "designer":
+                    ids = df_games.index[df_games["designer"].str.contains(value, na=False)].tolist()
+                elif field == "artist":
+                    ids = df_games.index[df_games["artist"].str.contains(value, na=False)].tolist()
+                
+                # criar lista com links sobre a ID para alterar variável chosen_id e mostrar detalhes do jogo
+                
+                st.session_state.chosen_id = st.segmented_control(
+                    label=f"Navegue pelos {len(ids)} jogos encontrados:",
+                    options=ids,
+                    key="found_games",
+                    format_func=lambda x: f"{x} {df_games.at[x, 'name']} ({df_games.at[x, 'year']}) - rank {df_games.at[x, 'rank_global']}" if x in df_games.index else str(x)
+                )
+                st.dataframe(df_games.loc[ids, ["name", "year", "rank_global", "designer", "mechanic"]].sort_values("rank_global").head(100))
+                
 
+    # -- MENU 5: AKINATOR --
     elif page == "Akinator":
         run_akinator(df_games)
+    
+    if st.session_state.chosen_id:
+        display_game_info(st.session_state.chosen_id, df_games, list_mechs, list_themes)
 
     #temporário para visualizar as colunas do dataframe
-    st.write(df_games.columns)
+    #st.write(df_games.columns)
     
 if __name__ == "__main__":
     main()
