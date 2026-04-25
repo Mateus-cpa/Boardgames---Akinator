@@ -57,59 +57,57 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
 
     else:
         game = df_games.loc[wanted_id,:]
-        st.header(f"{game['name']} (ID: {wanted_id})")
-    
-    if "bgg_url" in df_games.columns:
-        st.markdown(f"[Ver no BoardGameGeek]({game['bgg_url']})")
+        st.header(f"{game['name']} [id: {wanted_id}] ({game['year']}) - Rank {game['rank_global']}")
+        st.subheader("Informações básicas")
 
-    metadata_columns = [
-        "rank",
-        "year",
-        "minplayers",
-        "maxplayers",
-        "designer",
-        "description",
-        "family"
-        "avg_time",
-        "minplaytime",
-        "maxplauytime",
-        "average_weight",
-        "age",
-        "average_rating"
+        col1, col2, col3 = st.columns(3)
         
-    ]
-    st.subheader("Informações básicas")
-    for col in metadata_columns:
-        if col in df_games.columns:
-            st.write(f"**{col.capitalize()}:** {game[col]}")
-
-    st.subheader("Mecânicas e jogos similares")
-    wanted_mechs = df_games.mechanic[df_games.index == wanted_id].tolist()[0]
-    for mech in wanted_mechs.split(","):
-        st.write(f'- {mech.strip()}')
-    similar_mechs_mask = df_games['mechanic'].str.contains(wanted_mechs.split(",")[0].strip(), na=False)
-    st.write(df_games[similar_mechs_mask][['name', 'year', 'mechanic']].head(5))
-    
-    st.subheader("Temas e jogos similares")
-    wanted_themes = df_games.category[df_games.index == wanted_id].tolist()[0]
-    for theme in wanted_themes.split(","):
-        st.write(f'- {theme.strip()}')
-    similar_themes_mask = df_games['category'].str.contains(wanted_themes.split(",")[0].strip(), na=False)
-    st.write(df_games[similar_themes_mask][['name', 'year', 'category']].head(5))
+        metadata_columns = [
+            "designer",
+            "year",
+            "minplayers",
+            "maxplayers",
+            "description",
+            
+            "artist",
+            "minplaytime",
+            "maxplaytime",
+            "average_weight",
+            "age"]
         
-    st.subheader("Família")
-    wanted_family = df_games.family[df_games.index == wanted_id].tolist()[0]
-    for family in wanted_family.split(","):
-        st.write(f'- {family.strip()}')
-    
-    st.subheader("Subdomínios")
-    wanted_subdomains = df_games.domain[df_games.index == wanted_id].tolist()[0]
-    for sub in wanted_subdomains.split(","):
-        st.write(f'- {sub.strip()}')
-    
-   
+        for col in metadata_columns[0:5]:
+            col1.write(f"**{col.capitalize()}:** {game[col]}")
+        
+        for col in metadata_columns[5:]:
+            col2.write(f"**{col.capitalize()}:** {game[col]}")
 
-
+        if "image" in df_games.columns:
+            col3.image(game["image"], width=300)
+            
+        st.subheader("Mecânicas e jogos similares")
+        wanted_mechs = df_games.mechanic[df_games.index == wanted_id].tolist()[0]
+        for mech in wanted_mechs.split(","):
+            st.write(f'- {mech.strip()}')
+        similar_mechs_mask = df_games['mechanic'].str.contains(wanted_mechs.split(",")[0].strip(), na=False)
+        st.write(df_games[similar_mechs_mask][['name', 'year', 'mechanic']].head(5))
+        
+        st.subheader("Temas e jogos similares")
+        wanted_themes = df_games.category[df_games.index == wanted_id].tolist()[0]
+        for theme in wanted_themes.split(","):
+            st.write(f'- {theme.strip()}')
+        similar_themes_mask = df_games['category'].str.contains(wanted_themes.split(",")[0].strip(), na=False)
+        st.write(df_games[similar_themes_mask][['name', 'year', 'category']].head(5))
+            
+        st.subheader("Família")
+        wanted_family = df_games.family[df_games.index == wanted_id].tolist()[0]
+        for family in wanted_family.split(","):
+            st.write(f'- {family.strip()}')
+        
+        st.subheader("Subdomínios")
+        wanted_subdomains = df_games.domain[df_games.index == wanted_id].tolist()[0]
+        for sub in wanted_subdomains.split(","):
+            st.write(f'- {sub.strip()}')
+        
 
 def init_akinator_state(df_games, df_mechs, df_themes, df_subdomains, df_family):
     mech_labels, theme_labels, list_characteristics = build_characteristic_lists(df_mechs, df_themes)
@@ -238,14 +236,14 @@ def main():
         ],
     )
     
-
+    # -- MENU 1: ID --
     if page == "Buscar por ID":
         wanted_id = st.selectbox("Digite o ID do jogo:", options=df_games.index.tolist())
-        wanted_id = 444
-        #if st.button("Buscar"):
-        display_game_info(wanted_id, df_games, list_mechs, list_themes)
+        #wanted_id = 444
+        if st.button("Buscar"):
+            display_game_info(wanted_id, df_games, list_mechs, list_themes)
         
-
+    # -- MENU 2: NOME PARECIDO --
     elif page == "Buscar por nome parecido":
         query = st.text_input("Digite o nome ou parte do nome do jogo:")
         if query:
@@ -253,12 +251,13 @@ def main():
             chosen = st.selectbox("Escolha um jogo", matches)
             if st.button("Mostrar detalhes"):
                 selected_id = int(df_games[df_games["name"] == chosen].index[0])
-                display_game_info(selected_id, df_games)
+                display_game_info(selected_id, df_games, list_mechs, list_themes)
 
+    # -- MENU 3: JOGO ALEATÓRIO --
     elif page == "Jogo aleatório":
         if st.button("Sortear jogo"):
             random_id = valid_random_game(df_games)
-            display_game_info(random_id, df_games)
+            display_game_info(random_id, df_games, list_mechs, list_themes)
 
     elif page == "Por mecânica ou tema":
         characteristic = st.selectbox("Escolha uma característica", [""] + all_characteristics)
@@ -280,7 +279,7 @@ def main():
         run_akinator(df_games)
 
     #temporário para visualizar as colunas do dataframe
-    #st.write(df_games.columns)
+    st.write(df_games.columns)
     
 if __name__ == "__main__":
     main()
