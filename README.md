@@ -43,7 +43,7 @@ RapidFuzz
 Kagglehub
 
 ## Estrutura
-
+```
 Boardgames---Akinator/
 ├── streamlit_app.py
 ├── requirements.txt
@@ -51,3 +51,4 @@ Boardgames---Akinator/
 ├── README.md
 └── database/
     └── 5k version.xlsx
+```
