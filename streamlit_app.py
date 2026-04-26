@@ -112,22 +112,12 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
             
         #incluir link
 
-def init_akinator_state(df_games, df_mechs, df_themes, df_subdomains, df_family):
-    mech_labels, theme_labels, list_characteristics = build_characteristic_lists(df_mechs, df_themes)
-    df_themes_temp = df_themes.copy()
-    df_mechs_temp = df_mechs.copy()
-    df_themes_temp.columns = ["theme: " + col for col in df_themes.columns]
-    df_mechs_temp.columns = ["mechanic: " + col for col in df_mechs.columns]
-
+def init_akinator_state(df_games, all_characteristics):
     df_total = df_games.copy()
-    df_total = df_total.merge(df_themes_temp, how="left", left_index=True, right_index=True)
-    df_total = df_total.merge(df_mechs_temp, how="left", left_index=True, right_index=True)
-    df_total[list_characteristics] = df_total[list_characteristics].fillna(0)
     df_total["akinator"] = 0
-
     return {
         "df_total": df_total,
-        "questions": list_characteristics.copy(),
+        "questions": all_characteristics.copy(),
         "asked": [],
         "scores": {},
         "step": "start",
@@ -136,13 +126,13 @@ def init_akinator_state(df_games, df_mechs, df_themes, df_subdomains, df_family)
         "results": None,
     }
 
-
 def pick_next_question(state):
+    
+    # excluir perguntas já feitas e escolher aleatoriamente entre as restantes
     remaining = [q for q in state["questions"] if q not in state["asked"]]
     if not remaining:
         return None
     return random.choice(remaining)
-
 
 def compute_akinator_scores(state, answer: str, question: str):
     if answer == "Y":
@@ -151,34 +141,41 @@ def compute_akinator_scores(state, answer: str, question: str):
         state["df_total"]["akinator"] -= state["df_total"][question]
     state["asked"].append(question)
 
-    df_results = state["df_total"][["name", "min_players", "max_players", "akinator"]]
+    df_results = state["df_total"][["name", "minplayers", "maxplayers", "akinator"]]
     best_score = df_results["akinator"].max()
     top_matches = df_results[df_results["akinator"] == best_score]
     state["results"] = top_matches
     return top_matches
 
 
-def run_akinator(df_games, df_mechs, df_themes, df_subdomains):
+def run_akinator(df_games, all_characteristics):
     if "akinator_state" not in st.session_state:
-        st.session_state["akinator_state"] = init_akinator_state(df_games, df_mechs, df_themes, df_subdomains)
+        st.session_state["akinator_state"] = init_akinator_state(df_games, all_characteristics)
 
     state = st.session_state["akinator_state"]
 
     st.sidebar.write("### Configuração do Akinator")
     if st.sidebar.button("Reiniciar jogo"):
-        st.session_state["akinator_state"] = init_akinator_state(df_games, df_mechs, df_themes, df_subdomains)
+        st.session_state["akinator_state"] = init_akinator_state(df_games, all_characteristics)
         state = st.session_state["akinator_state"]
 
     if state["step"] == "start":
-        players = st.number_input("Quantos jogadores o jogo suporta?", min_value=1, max_value=100, value=2)
+        col1, col2 = st.columns([0.4, 0.6])
+        players = col1.number_input("Quantos jogadores o jogo suporta?", min_value=1, max_value=100, value=2)
+        
+        # Filtra por número de jogadores e atribui pontuação inicial
         if st.button("Começar"):
             state["players"] = int(players)
             state["df_total"]["akinator"] = 0
             state["df_total"]["akinator"] += state["df_total"].apply(
-                lambda row: 100 if state["players"] >= row["min_players"] and state["players"] <= row["max_players"] else 0,
+                lambda row: 100 if state["players"] >= row["minplayers"] and state["players"] <= row["maxplayers"] else 0,
                 axis=1,
             )
             state["step"] = "question"
+            # excluir perguntas irrelevantes 
+            # (ex: número de jogadores fora do intervalo) 
+            # isso pode ser melhorado para excluir perguntas que não discriminam mais os candidatos atuais
+            
             state["current_question"] = pick_next_question(state)
 
     if state["step"] == "question":
@@ -189,8 +186,8 @@ def run_akinator(df_games, df_mechs, df_themes, df_subdomains):
             return
 
         st.write(f"A pergunta atual é: {state['current_question']}")
-        answer = st.radio("Resposta", ["Y", "N"], key="akinator_answer")
-        if st.button("Enviar resposta"):
+        answer = st.segmented_control("Resposta", ["Sim","Não"], key="akinator_answer")
+        if answer:
             compute_akinator_scores(state, answer, state["current_question"])
             top_matches = state["results"]
             if top_matches.shape[0] == 1:
@@ -208,7 +205,7 @@ def run_akinator(df_games, df_mechs, df_themes, df_subdomains):
         if state["results"] is not None and state["results"].shape[0] >= 1:
             best_id = int(state["results"].index[0])
             st.success("O Akinator escolheu um jogo!")
-            display_game_info(best_id, df_games, df_mechs, df_themes, df_subdomains)
+            display_game_info(best_id, df_games)
         else:
             st.warning("Nenhum resultado definitivo foi encontrado.")
 
@@ -291,10 +288,11 @@ def main():
                 )
                 st.dataframe(df_games.loc[ids, ["name", "year", "rank_global", "designer", "mechanic"]].sort_values("rank_global").head(100))
                 
-
     # -- MENU 5: AKINATOR --
     elif page == "Akinator":
-        run_akinator(df_games)
+        run_akinator(df_games, all_characteristics)
+    
+    # -- MENU 6: adicionar pandas profile --
     
     if st.session_state.chosen_id:
         display_game_info(st.session_state.chosen_id, df_games, list_mechs, list_themes)
