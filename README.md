@@ -12,14 +12,44 @@ Uma interface interativa em Streamlit para descobrir jogos de tabuleiro usando d
 
 ## Instalação
 
-```bash
-# Instalação
-python -m venv venv
-venv\Scripts\activate
-python -m pip install -r requirements.txt
+### Pré-requisitos
 
-#Execução
-python -m streamlit run streamlit_app.py
+- Python 3.9+
+- Poetry ([Instalar Poetry](https://python-poetry.org/docs/#installation))
+
+### Setup Rápido
+
+```bash
+# Clonar o repositório
+git clone https://github.com/Mateus-cpa/Boardgames---Akinator.git
+cd Boardgames---Akinator
+
+# Instalar dependências e criar ambiente virtual
+poetry install
+
+# Ativar o ambiente virtual
+poetry shell
+
+# Executar a aplicação
+streamlit run streamlit_app.py
+```
+
+A aplicação estará disponível em: `http://localhost:8501`
+
+### Comandos Úteis
+
+```bash
+# Executar sem ativar shell
+poetry run streamlit run streamlit_app.py
+
+# Adicionar nova dependência
+poetry add package_name
+
+# Remover dependência
+poetry remove package_name
+
+# Atualizar dependências
+poetry update
 ```
 
 ## Dados Necessários
@@ -46,8 +76,8 @@ Kagglehub
 ```
 Boardgames---Akinator/
 ├── streamlit_app.py
-├── requirements.txt
 ├── pyproject.toml
+├── poetry.lock
 ├── README.md
 └── database/
     └── 5k version.xlsx
