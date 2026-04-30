@@ -1,8 +1,8 @@
 import os
 import random
 
-import pandas as pd
-import streamlit as st
+import pandas as pd 
+import streamlit as st 
 from rapidfuzz import process
 #import plotly.express as px
 
@@ -233,7 +233,6 @@ def compute_akinator_scores(state, answer: str, question: str):
     state["results"] = top_matches
     return top_matches
 
-
 def run_akinator(df_games, all_characteristics):
     if "akinator_state" not in st.session_state:
         st.session_state["akinator_state"] = init_akinator_state(df_games, all_characteristics)
@@ -335,7 +334,6 @@ def run_akinator(df_games, all_characteristics):
         else:
             st.warning("Nenhum resultado definitivo foi encontrado.")
 
-
 def main():
     st.set_page_config(page_title="Boardgame Akinator", layout="wide")
     st.title("Navegação BGG")
@@ -430,8 +428,9 @@ def main():
                 format_func=lambda x: f"{x} {df_games.at[x, 'name']} ({df_games.at[x, 'year']}) - rank {df_games.at[x, 'rank_global']}" if x in df_games.index else str(x)
             )
                 
-                
+
        # -- MENU 5: AKINATOR --
+    
     elif page == "Akinator":
         run_akinator(df_games, all_characteristics)
     
@@ -439,20 +438,24 @@ def main():
     elif page == "Painel de dados":
         st.subheader("Filtrar jogos")
         
-        col1, col2, col3 = st.columns(3)
+        
         
         # Filtros
-        with col1:
-            min_year = st.slider("Ano mínimo:", int(df_games["year"].min()), int(df_games["year"].max()), int(df_games["year"].min()), key="min_year")
-            max_players = st.slider("Máximo de jogadores:", 1, int(df_games["maxplayers"].max()), int(df_games["maxplayers"].max()), key="max_players")
+        with st.expander("Filtros numéricos", expanded=False):
+            min_year, max_year, min_players, max_players, min_weight, max_weight = None, None, None, None, None, None
+            if st.checkbox("Filtro mínimo ano", key="check_min_year"):
+                min_year = st.slider("Ano mínimo:", int(df_games["year"].min()), int(df_games["year"].max()), int(df_games["year"].min()), key="filter_min_year")
+            if st.checkbox("Filtro máximo ano", key="check_max_year"):
+                max_year = st.slider("Ano máximo:", int(df_games["year"].min()), int(df_games["year"].max()), int(df_games["year"].max()), key="filter_max_year")
+            if st.checkbox("Filtro mínimo jogadores", key="check_min_players"):
+                min_players = st.slider("Mínimo de jogadores:", 1, int(df_games["minplayers"].max()), 1, key="filter_min_players")
+            if st.checkbox("Filtro máximo jogadores", key="check_max_players"):
+                max_players = st.slider("Máximo de jogadores:", 1, int(df_games["maxplayers"].max()), int(df_games["maxplayers"].max()), key="filter_max_players")
+            if st.checkbox("Filtro mínimo peso", key="check_min_weight"):
+                min_weight = st.slider("Peso mínimo:", 0.0, 5.0, 0.0, step=0.1, key="filter_min_weight")
+            if st.checkbox("Filtro máximo peso", key="check_max_weight"):
+                max_weight = st.slider("Peso máximo:", 0.0, 5.0, 5.0, step=0.1, key="filter_max_weight")
             
-        with col2:
-            max_year = st.slider("Ano máximo:", int(df_games["year"].min()), int(df_games["year"].max()), int(df_games["year"].max()), key="max_year")
-            min_weight = st.slider("Peso mínimo:", 0.0, 5.0, 0.0, step=0.1, key="min_weight")
-            
-        with col3:
-            min_players = st.slider("Mínimo de jogadores:", 1, int(df_games["minplayers"].max()), 1, key="min_players")
-            max_weight = st.slider("Peso máximo:", 0.0, 5.0, 5.0, step=0.1, key="max_weight")
         
         # Filtros de características
         col1, col2 = st.columns(2)
@@ -485,14 +488,19 @@ def main():
         df_filtered = df_games.copy()
         
         # Filtros numéricos
-        df_filtered = df_filtered[
-            (df_filtered["year"] >= min_year) &
-            (df_filtered["year"] <= max_year) &
-            (df_filtered["minplayers"] <= min_players) &
-            (df_filtered["maxplayers"] >= max_players) &
-            (df_filtered["average_weight"] >= min_weight) &
-            (df_filtered["average_weight"] <= max_weight)
-        ]
+        if min_year:
+            df_filtered = df_filtered[df_filtered["year"] >= min_year]
+        if max_year:
+            df_filtered = df_filtered[df_filtered["year"] <= max_year]
+        if min_players:
+            df_filtered = df_filtered[df_filtered["minplayers"] >= min_players]
+        if max_players:
+            df_filtered = df_filtered[df_filtered["maxplayers"] <= max_players]
+        if min_weight:
+            df_filtered = df_filtered[df_filtered["average_weight"] >= min_weight]
+        if max_weight:
+            df_filtered = df_filtered[df_filtered["average_weight"] <= max_weight]
+
         
         # Filtros de características
         if selected_mechanics:
@@ -511,8 +519,15 @@ def main():
             for artist in selected_artists:
                 df_filtered = df_filtered[df_filtered["artist"].str.contains(artist, na=False)]
         
-        # Mostrar resultados
-        st.write(f"**Total de jogos encontrados:** {len(df_filtered)}")
+        
+        #gráfico de barras por ano
+        st.subheader("Distribuição por ano")
+        st.bar_chart(df_filtered["year"].value_counts().sort_index(), use_container_width=True)
+        
+        #gráfico por mecânica
+        st.subheader("Quantidade por mecânica")
+        mech_counts = df_filtered["mechanic"].str.split(",").explode().value_counts()
+        st.bar_chart(mech_counts, use_container_width=True, horizontal=True, sort=False)
         
         # Seleção de colunas a exibir
         columns_to_show = st.multiselect(
@@ -522,14 +537,19 @@ def main():
             key="columns_display"
         )
         
+        
+        st.subheader("Jogos encontrados")
+        st.write(f"**Total de jogos encontrados:** {len(df_filtered)}")
         if columns_to_show:
             st.dataframe(df_filtered[columns_to_show].sort_values("rank_global"), use_container_width=True)
-    
+
+        
     if st.session_state.chosen_id:
         display_game_info(st.session_state.chosen_id, df_games, list_mechs, list_themes)
 
-    #temporário para visualizar as colunas do dataframe
-    #st.write(df_games.columns)
+    
+        
+    
     
 if __name__ == "__main__":
     main()
