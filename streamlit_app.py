@@ -4,9 +4,8 @@ import random
 import pandas as pd
 import streamlit as st
 from rapidfuzz import process
+#import plotly.express as px
 
-#import kagglehub
-#from kagglehub import KaggleDatasetAdapter
 
 
 @st.cache_data(show_spinner=True)
@@ -127,21 +126,108 @@ def init_akinator_state(df_games, all_characteristics):
     }
 
 def pick_next_question(state):
-    
-    # excluir perguntas já feitas e escolher aleatoriamente entre as restantes
+    """
+    Seleciona a próxima pergunta priorizando características mais comuns
+    entre os jogos candidatos (com score > 0)
+    """
+    # Excluir perguntas já feitas
     remaining = [q for q in state["questions"] if q not in state["asked"]]
+    
     if not remaining:
         return None
-    return random.choice(remaining)
+    
+    # Filtrar apenas jogos com a maior pontuação (melhores candidatos)
+    best_score = state["df_total"]["akinator"].max()
+    df_candidates = state["df_total"][state["df_total"]["akinator"] == best_score]
+    
+    # Extrair características presentes apenas nos jogos candidatos
+    candidate_characteristics = set()
+    
+    # Extrair todas as características dos candidatos
+    for _, row in df_candidates.iterrows():
+        if pd.notna(row["mechanic"]):
+            for m in row["mechanic"].split(","):
+                candidate_characteristics.add(f"mechanic: {m.strip()}")
+        if pd.notna(row["category"]):
+            for c in row["category"].split(","):
+                candidate_characteristics.add(f"theme: {c.strip()}")
+        if pd.notna(row["domain"]):
+            for d in row["domain"].split(","):
+                candidate_characteristics.add(f"subdomain: {d.strip()}")
+        #if pd.notna(row["family"]):
+        #    for f in row["family"].split(","):
+        #        candidate_characteristics.add(f"family: {f.strip()}")
+        if pd.notna(row["designer"]):
+            for d in row["designer"].split(","):
+                candidate_characteristics.add(f"designer: {d.strip()}")
+        if pd.notna(row["artist"]):
+            for a in row["artist"].split(","):
+                candidate_characteristics.add(f"artist: {a.strip()}")
+    
+    # Filtrar apenas perguntas restantes que existem nos candidatos
+    relevant_questions = [q for q in remaining if q in candidate_characteristics]
+    
+    # Contar frequência de cada característica nos candidatos
+    characteristic_count = {}
+    
+    for question in relevant_questions:
+        field, value = question.split(": ", 1)
+        value = value.strip()
+        
+        # Contar quantos jogos candidatos têm essa característica
+        if field == "mechanic":
+            count = df_candidates["mechanic"].str.contains(value, na=False).sum()
+        elif field == "theme":
+            count = df_candidates["category"].str.contains(value, na=False).sum()
+        elif field == "subdomain":
+            count = df_candidates["domain"].str.contains(value, na=False).sum()
+        elif field == "family":
+            count = df_candidates["family"].str.contains(value, na=False).sum()
+        elif field == "designer":
+            count = df_candidates["designer"].str.contains(value, na=False).sum()
+        elif field == "artist":
+            count = df_candidates["artist"].str.contains(value, na=False).sum()
+        else:
+            count = 0
+        
+        characteristic_count[question] = count
+
+    # Selecionar a pergunta com maior frequência entre os candidatos
+    best_question = max(characteristic_count.items(), key=lambda x: x[1])[0]
+    return best_question
 
 def compute_akinator_scores(state, answer: str, question: str):
-    if answer == "Y":
-        state["df_total"]["akinator"] += state["df_total"][question]
-    elif answer == "N":
-        state["df_total"]["akinator"] -= state["df_total"][question]
+    # Extrair campo e valor da pergunta
+    field, value = question.split(": ", 1)
+    value = value.strip()
+    
+    # Criar máscara de quais jogos têm essa característica
+    if field == "mechanic":
+        mask = state["df_total"]["mechanic"].str.contains(value, na=False, regex=False)
+    elif field == "theme":
+        mask = state["df_total"]["category"].str.contains(value, na=False, regex=False)
+    elif field == "subdomain":
+        mask = state["df_total"]["domain"].str.contains(value, na=False, regex=False)
+    elif field == "family":
+        mask = state["df_total"]["family"].str.contains(value, na=False, regex=False)
+    elif field == "designer":
+        mask = state["df_total"]["designer"].str.contains(value, na=False, regex=False)
+    elif field == "artist":
+        mask = state["df_total"]["artist"].str.contains(value, na=False, regex=False)
+    else:
+        mask = pd.Series([False] * len(state["df_total"]))
+    
+    # Pontuação a adicionar/remover
+    points = 10
+    
+    if answer == "Sim":
+        state["df_total"].loc[mask, "akinator"] += points
+    elif answer == "Não":
+        state["df_total"].loc[mask, "akinator"] -= points
+    
     state["asked"].append(question)
 
-    df_results = state["df_total"][["name", "minplayers", "maxplayers", "akinator"]]
+    df_results = state["df_total"][["name", "minplayers", "maxplayers", "year", "akinator"]]
     best_score = df_results["akinator"].max()
     top_matches = df_results[df_results["akinator"] == best_score]
     state["results"] = top_matches
@@ -154,8 +240,7 @@ def run_akinator(df_games, all_characteristics):
 
     state = st.session_state["akinator_state"]
 
-    st.sidebar.write("### Configuração do Akinator")
-    if st.sidebar.button("Reiniciar jogo"):
+    if st.button("Reiniciar jogo"):
         st.session_state["akinator_state"] = init_akinator_state(df_games, all_characteristics)
         state = st.session_state["akinator_state"]
 
@@ -163,7 +248,6 @@ def run_akinator(df_games, all_characteristics):
         col1, col2 = st.columns([0.4, 0.6])
         players = col1.number_input("Quantos jogadores o jogo suporta?", min_value=1, max_value=100, value=2)
         
-        # Filtra por número de jogadores e atribui pontuação inicial
         if st.button("Começar"):
             state["players"] = int(players)
             state["df_total"]["akinator"] = 0
@@ -172,10 +256,6 @@ def run_akinator(df_games, all_characteristics):
                 axis=1,
             )
             state["step"] = "question"
-            # excluir perguntas irrelevantes 
-            # (ex: número de jogadores fora do intervalo) 
-            # isso pode ser melhorado para excluir perguntas que não discriminam mais os candidatos atuais
-            
             state["current_question"] = pick_next_question(state)
 
     if state["step"] == "question":
@@ -185,27 +265,73 @@ def run_akinator(df_games, all_characteristics):
             state["step"] = "finished"
             return
 
-        st.write(f"A pergunta atual é: {state['current_question']}")
-        answer = st.segmented_control("Resposta", ["Sim","Não"], key="akinator_answer")
-        if answer:
-            compute_akinator_scores(state, answer, state["current_question"])
-            top_matches = state["results"]
-            if top_matches.shape[0] == 1:
-                state["step"] = "finished"
-            else:
-                state["current_question"] = pick_next_question(state)
-                if state["current_question"] is None:
+        st.write(f"**Pergunta {len(state['asked']) + 1}:** {state['current_question']}")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            answer = st.radio("Sua resposta:", ["Sim", "Não"], key=f"answer_{state['current_question']}")
+        with col2:
+            if st.button("Confirmar resposta", key="next_btn"):
+                compute_akinator_scores(state, answer, state["current_question"])
+                top_matches = state["results"]
+                
+                if top_matches.shape[0] == 1:
                     state["step"] = "finished"
+                else:
+                    state["current_question"] = pick_next_question(state)
+                    if state["current_question"] is None:
+                        state["step"] = "finished"
+                
+                st.rerun()
 
-        if state["results"] is not None:
-            st.write(f"Jogos candidatos atuais: {state['results'].shape[0]}")
-            st.dataframe(state["results"].head(10))
+        # Debug: monitorar pontuações e características
+        with st.expander("📊 Debug - Monitoramento detalhado", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.write("**Pontuações atuais (top 15):**")
+                top_scores = state["df_total"][["name", "akinator"]].sort_values("akinator", ascending=False).head(15)
+                st.dataframe(top_scores, use_container_width=True, hide_index=True)
+            
+            with col2:
+                st.write("**Distribuição de pontuações:**")
+                score_dist = state["df_total"]["akinator"].value_counts().sort_index(ascending=False).head(10)
+                st.bar_chart(score_dist)
+            
+            with col3:
+                st.write("**Perguntas respondidas:**")
+                if state["asked"]:
+                    for i, q in enumerate(state["asked"], 1):
+                        st.write(f"{i}. {q}")
+                else:
+                    st.write("Nenhuma pergunta respondida ainda")
+            
+            # Debug da última pergunta
+            if state["asked"]:
+                st.write("---")
+                st.write("**Debug da última resposta:**")
+                last_q = state["asked"][-1]
+                field, value = last_q.split(": ", 1)
+                
+                if field == "mechanic":
+                    col_name = "mechanic"
+                elif field == "theme":
+                    col_name = "category"
+                elif field == "subdomain":
+                    col_name = "domain"
+                else:
+                    col_name = field
+                
+                games_with_feature = state["df_total"][state["df_total"][col_name].str.contains(value.strip(), na=False, regex=False)].shape[0]
+                st.write(f"Pergunta: {last_q}")
+                st.write(f"Jogos com '{value.strip()}': {games_with_feature}")
+                st.write(f"Pontuação mín/máx/média: {state['df_total']['akinator'].min()} / {state['df_total']['akinator'].max()} / {state['df_total']['akinator'].mean():.1f}")
 
     if state["step"] == "finished":
         if state["results"] is not None and state["results"].shape[0] >= 1:
             best_id = int(state["results"].index[0])
             st.success("O Akinator escolheu um jogo!")
-            display_game_info(best_id, df_games)
+            display_game_info(best_id, df_games, None, None)
         else:
             st.warning("Nenhum resultado definitivo foi encontrado.")
 
@@ -214,6 +340,8 @@ def main():
     st.set_page_config(page_title="Boardgame Akinator", layout="wide")
     st.title("Navegação BGG")
     st.write("Uma interface interativa para encontrar jogos de tabuleiro usando dados do BoardGameGeek.")
+
+    st.session_state.setdefault("chosen_id", None)
 
     try:
         df_games, df_mechs, df_themes, df_subdomains, df_family = load_data()
@@ -231,9 +359,15 @@ def main():
             "Jogo aleatório",
             "Por característica",
             "Akinator",
+            "Painel de dados"
         ],
         key="main_menu"
+        
     )
+    
+    # reiniciar st.session_state.chosen_id ao mudar de menu para evitar mostrar detalhes de um jogo anterior
+    st.session_state.chosen_id = None
+    
     page = st.session_state.get("main_menu", "Por característica")
     
     # -- MENU 1: ID --
@@ -260,39 +394,136 @@ def main():
             
     # -- MENU 4: POR CARACTERÍSTICA --
     elif page == "Por característica":
-        characteristic = st.selectbox("Escolha uma característica", [""] + all_characteristics)
-        if characteristic:
-            if st.button("Buscar jogos com essa característica"):
-                field, value = characteristic.split(": ", 1)
-                value = value.strip()
-                if field == "mechanic":
-                    ids = df_games.index[df_games["mechanic"].str.contains(value, na=False)].tolist()
-                elif field == "theme":
-                    ids = df_games.index[df_games["category"].str.contains(value, na=False)].tolist()
-                elif field == "subdomain":
-                    ids = df_games.index[df_games["domain"].str.contains(value, na=False)].tolist()
-                elif field == "family":
-                    ids = df_games.index[df_games["family"].str.contains(value, na=False)].tolist()
-                elif field == "designer":
-                    ids = df_games.index[df_games["designer"].str.contains(value, na=False)].tolist()
-                elif field == "artist":
-                    ids = df_games.index[df_games["artist"].str.contains(value, na=False)].tolist()
+        st.session_state.setdefault("characteristic_ids", [])
+        search_text = st.text_input("Buscar característica:")
+        filtered_characteristics = [c for c in all_characteristics if search_text.lower() in c.lower()] if search_text else all_characteristics
+
+        if filtered_characteristics:
+            characteristic = st.selectbox("Escolha uma característica", [""] + filtered_characteristics)
+        else:
+            st.info("Nenhuma característica encontrada")
+            characteristic = ""
+        if st.button("Buscar jogos com essa característica"):
+            field, value = characteristic.split(": ", 1)
+            value = value.strip()
+            if field == "mechanic":
+                ids = df_games.index[df_games["mechanic"].str.contains(value, na=False)].tolist()
+            elif field == "theme":
+                ids = df_games.index[df_games["category"].str.contains(value, na=False)].tolist()
+            elif field == "subdomain":
+                ids = df_games.index[df_games["domain"].str.contains(value, na=False)].tolist()
+            elif field == "family":
+                ids = df_games.index[df_games["family"].str.contains(value, na=False)].tolist()
+            elif field == "designer":
+                ids = df_games.index[df_games["designer"].str.contains(value, na=False)].tolist()
+            elif field == "artist":
+                ids = df_games.index[df_games["artist"].str.contains(value, na=False)].tolist()
+            
+            st.session_state.characteristic_ids = ids
+        
+        # Mostrar segmented_control se há resultados
+        if st.session_state.characteristic_ids:
+            st.session_state.chosen_id = st.segmented_control(
+                label=f"Navegue pelos {len(st.session_state.characteristic_ids)} jogos encontrados:",
+                options=st.session_state.characteristic_ids,
+                key="found_games",
+                format_func=lambda x: f"{x} {df_games.at[x, 'name']} ({df_games.at[x, 'year']}) - rank {df_games.at[x, 'rank_global']}" if x in df_games.index else str(x)
+            )
                 
-                # criar lista com links sobre a ID para alterar variável chosen_id e mostrar detalhes do jogo
                 
-                st.session_state.chosen_id = st.segmented_control(
-                    label=f"Navegue pelos {len(ids)} jogos encontrados:",
-                    options=ids,
-                    key="found_games",
-                    format_func=lambda x: f"{x} {df_games.at[x, 'name']} ({df_games.at[x, 'year']}) - rank {df_games.at[x, 'rank_global']}" if x in df_games.index else str(x)
-                )
-                st.dataframe(df_games.loc[ids, ["name", "year", "rank_global", "designer", "mechanic"]].sort_values("rank_global").head(100))
-                
-    # -- MENU 5: AKINATOR --
+       # -- MENU 5: AKINATOR --
     elif page == "Akinator":
         run_akinator(df_games, all_characteristics)
     
-    # -- MENU 6: adicionar pandas profile --
+    # -- MENU 6: PAINEL DE DADOS --
+    elif page == "Painel de dados":
+        st.subheader("Filtrar jogos")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        # Filtros
+        with col1:
+            min_year = st.slider("Ano mínimo:", int(df_games["year"].min()), int(df_games["year"].max()), int(df_games["year"].min()), key="min_year")
+            max_players = st.slider("Máximo de jogadores:", 1, int(df_games["maxplayers"].max()), int(df_games["maxplayers"].max()), key="max_players")
+            
+        with col2:
+            max_year = st.slider("Ano máximo:", int(df_games["year"].min()), int(df_games["year"].max()), int(df_games["year"].max()), key="max_year")
+            min_weight = st.slider("Peso mínimo:", 0.0, 5.0, 0.0, step=0.1, key="min_weight")
+            
+        with col3:
+            min_players = st.slider("Mínimo de jogadores:", 1, int(df_games["minplayers"].max()), 1, key="min_players")
+            max_weight = st.slider("Peso máximo:", 0.0, 5.0, 5.0, step=0.1, key="max_weight")
+        
+        # Filtros de características
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            selected_mechanics = st.multiselect(
+                "Mecânicas:",
+                list_mechs[0],
+                key="selected_mechanics"
+            )
+            selected_designers = st.multiselect(
+                "Designers:",
+                [d for d in df_games["designer"].str.split(",").explode().unique() if pd.notna(d)],
+                key="selected_designers"
+            )
+        
+        with col2:
+            selected_themes = st.multiselect(
+                "Temas:",
+                list_themes[0],
+                key="selected_themes"
+            )
+            selected_artists = st.multiselect(
+                "Artistas:",
+                [a for a in df_games["artist"].str.split(",").explode().unique() if pd.notna(a)],
+                key="selected_artists"
+            )
+        
+        # Aplicar filtros
+        df_filtered = df_games.copy()
+        
+        # Filtros numéricos
+        df_filtered = df_filtered[
+            (df_filtered["year"] >= min_year) &
+            (df_filtered["year"] <= max_year) &
+            (df_filtered["minplayers"] <= min_players) &
+            (df_filtered["maxplayers"] >= max_players) &
+            (df_filtered["average_weight"] >= min_weight) &
+            (df_filtered["average_weight"] <= max_weight)
+        ]
+        
+        # Filtros de características
+        if selected_mechanics:
+            for mech in selected_mechanics:
+                df_filtered = df_filtered[df_filtered["mechanic"].str.contains(mech, na=False)]
+        
+        if selected_themes:
+            for theme in selected_themes:
+                df_filtered = df_filtered[df_filtered["category"].str.contains(theme, na=False)]
+        
+        if selected_designers:
+            for designer in selected_designers:
+                df_filtered = df_filtered[df_filtered["designer"].str.contains(designer, na=False)]
+        
+        if selected_artists:
+            for artist in selected_artists:
+                df_filtered = df_filtered[df_filtered["artist"].str.contains(artist, na=False)]
+        
+        # Mostrar resultados
+        st.write(f"**Total de jogos encontrados:** {len(df_filtered)}")
+        
+        # Seleção de colunas a exibir
+        columns_to_show = st.multiselect(
+            "Selecione as colunas a exibir:",
+            df_filtered.columns.tolist(),
+            default=["name", "year", "rank_global", "minplayers", "maxplayers", "average_weight"],
+            key="columns_display"
+        )
+        
+        if columns_to_show:
+            st.dataframe(df_filtered[columns_to_show].sort_values("rank_global"), use_container_width=True)
     
     if st.session_state.chosen_id:
         display_game_info(st.session_state.chosen_id, df_games, list_mechs, list_themes)
