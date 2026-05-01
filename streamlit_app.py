@@ -526,9 +526,23 @@ def main():
         
         #gráfico por mecânica
         st.subheader("Quantidade por mecânica")
-        mech_counts = df_filtered["mechanic"].str.split(",").explode().value_counts()
-        st.bar_chart(mech_counts, use_container_width=True, horizontal=True, sort=False)
+        control_top_mechanics = st.slider("Número de mecânicas a exibir:", 1, 50, 20, key="slider_top_mechanics")
+        mech_counts = df_filtered["mechanic"].str.split(",").explode().value_counts()        
+        st.bar_chart(mech_counts.head(control_top_mechanics), use_container_width=True, horizontal=True, sort=False)
         
+        #gráfico por tema
+        st.subheader("Quantidade por tema")
+        control_top_themes = st.slider("Número de temas a exibir:", 1, 50, 20, key="slider_top_themes")
+        theme_counts = df_filtered["category"].str.split(",").explode().value_counts()
+        st.bar_chart(theme_counts.head(control_top_themes), use_container_width=True, horizontal=True, sort=False)
+        
+        #gráfico por artista
+        st.subheader("Quantidade por artista")
+        control_top_artists = st.slider("Número de artistas a exibir:", 1, 50, 20, key="slider_top_artists")
+        artist_counts = df_filtered["artist"].str.split(",").explode().value_counts()
+        st.bar_chart(artist_counts.head(control_top_artists), use_container_width=True, horizontal=True, sort=False)
+
+
         # Seleção de colunas a exibir
         columns_to_show = st.multiselect(
             "Selecione as colunas a exibir:",
