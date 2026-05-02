@@ -68,7 +68,7 @@ def similar_caracteristics(df_games, column, wanted_list, title, key_prefix, min
     df_similar = df_similar.sort_values("common_count", ascending=False)
 
     st.subheader(title)
-
+    
     if df_similar.empty:
         st.write("Nenhum jogo similar com pelo menos 2 características em comum.")
         return df_similar
@@ -96,9 +96,9 @@ def similar_caracteristics(df_games, column, wanted_list, title, key_prefix, min
         with left:
             if st.checkbox("", key=f"{key_prefix}_{game.Index}"):
                 st.session_state.chosen_id = game.Index
-                st.session_state.page = "Exibição de detalhes do jogo"
+                
                 st.rerun()
-                st.rerun()
+                
 
     return df_similar
 
@@ -110,6 +110,8 @@ def display_game_info(wanted_id: int, df_games):
     else:
         game = df_games.loc[wanted_id,:]
         st.header(f"{game['name']} [id: {wanted_id}] ({game['year']}) - Rank {game['rank_global']}")
+
+                   
         st.subheader("Informações básicas")
 
         col1, col2, col3 = st.columns(3)
@@ -461,20 +463,17 @@ def main():
         key="main_menu"
     )
     
-    # reiniciar st.session_state.chosen_id ao mudar de menu para evitar mostrar detalhes de um jogo anterior
-    st.session_state.chosen_id = None
-    
-    st.session_state.page = st.session_state.get("main_menu", "Por característica")
+    page = st.session_state.get("main_menu", "Por característica")
     
     # -- MENU 1: ID --
-    if st.session_state.page == "Buscar por ID":
+    if page == "Buscar por ID":
         wanted_id = st.selectbox("Digite o ID do jogo:", options=df_games.index.tolist())
         #wanted_id = 444
         if st.button("Buscar"):
             st.session_state.chosen_id = wanted_id
 
     # -- MENU 2: NOME PARECIDO --
-    elif st.session_state.page == "Buscar por nome parecido":
+    elif page == "Buscar por nome parecido":
         query = st.text_input("Digite o nome ou parte do nome do jogo:")
         if query:
             matches = find_similar(query, df_games["name"].tolist(), limit=10)
@@ -484,12 +483,12 @@ def main():
                 st.session_state.chosen_id = selected_id
 
     # -- MENU 3: JOGO ALEATÓRIO --
-    elif st.session_state.page == "Jogo aleatório":
+    elif page == "Jogo aleatório":
         if st.button("Sortear jogo"):
             st.session_state.chosen_id = valid_random_game(df_games)
             
     # -- MENU 4: POR CARACTERÍSTICA --
-    elif st.session_state.page == "Por característica":
+    elif page == "Por característica":
         st.session_state.setdefault("characteristic_ids", [])
         search_text = st.text_input("Buscar característica:")
         filtered_characteristics = [c for c in all_characteristics if search_text.lower() in c.lower()] if search_text else all_characteristics
@@ -527,11 +526,11 @@ def main():
             )
                 
     # -- MENU 5: AKINATOR --
-    elif st.session_state.page == "Akinator":
+    elif page == "Akinator":
         run_akinator(df_games, all_characteristics)
     
     # -- MENU 6: PAINEL DE DADOS --
-    elif st.session_state.page == "Painel de dados":
+    elif page == "Painel de dados":
         st.subheader("Filtrar jogos")
         
         
@@ -654,7 +653,7 @@ def main():
             st.dataframe(df_filtered[columns_to_show].sort_values("rank_global"), use_container_width=True)
 
     # -- MENU 7: EXIBIÇÃO DE DETALHES DO JOGO --
-    elif st.session_state.page == "Exibição de detalhes do jogo":
+    elif page == "Exibição de detalhes do jogo":
         display_game_info(st.session_state.chosen_id, df_games)
         
     if st.session_state.chosen_id:
