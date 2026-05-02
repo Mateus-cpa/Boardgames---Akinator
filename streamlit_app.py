@@ -96,10 +96,13 @@ def similar_caracteristics(df_games, column, wanted_list, title, key_prefix, min
         with left:
             if st.checkbox("", key=f"{key_prefix}_{game.Index}"):
                 st.session_state.chosen_id = game.Index
+                st.session_state.page = "Exibição de detalhes do jogo"
+                st.rerun()
+                st.rerun()
 
     return df_similar
 
-def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
+def display_game_info(wanted_id: int, df_games):
     if wanted_id not in df_games.index:
         st.info("ID não encontrado. Por favor, escolha um ID válido.")
         return
@@ -134,6 +137,8 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
             col3.image(game["image"], width=300)
             
         wanted_mechs = df_games.at[wanted_id, "mechanic"]
+        if pd.isna(wanted_mechs):
+            wanted_mechs = ""
         wanted_mechs_list = [m.strip() for m in wanted_mechs.split(",") if m.strip()]
         similar_caracteristics(
             df_games,
@@ -144,6 +149,8 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
         )
 
         wanted_themes = df_games.at[wanted_id, "category"]
+        if pd.isna(wanted_themes):
+            wanted_themes = ""
         wanted_themes_list = [t.strip() for t in wanted_themes.split(",") if t.strip()]
         similar_caracteristics(
             df_games,
@@ -154,6 +161,8 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
         )
 
         wanted_designers = df_games.at[wanted_id, "designer"]
+        if pd.isna(wanted_designers):
+            wanted_designers = ""
         wanted_designers_list = [d.strip() for d in wanted_designers.split(",") if d.strip()]
         similar_caracteristics(
             df_games,
@@ -164,6 +173,8 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
         )
 
         wanted_artists = df_games.at[wanted_id, "artist"]
+        if pd.isna(wanted_artists):
+            wanted_artists = ""
         wanted_artists_list = [a.strip() for a in wanted_artists.split(",") if a.strip()]
         similar_caracteristics(
             df_games,
@@ -174,6 +185,8 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
         )
             
         wanted_family = df_games.at[wanted_id, "family"]
+        if pd.isna(wanted_family):
+            wanted_family = ""
         wanted_family_list = [f.strip() for f in wanted_family.split(",") if f.strip()]
         similar_caracteristics(
             df_games,
@@ -184,6 +197,8 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
         )
         
         wanted_subdomains = df_games.at[wanted_id, "domain"]
+        if pd.isna(wanted_subdomains):
+            wanted_subdomains = ""
         wanted_subdomains_list = [s.strip() for s in wanted_subdomains.split(",") if s.strip()]
         similar_caracteristics(
             df_games,
@@ -414,7 +429,7 @@ def run_akinator(df_games, all_characteristics):
         if state["results"] is not None and state["results"].shape[0] >= 1:
             best_id = int(state["results"].index[0])
             st.success("O Akinator escolheu um jogo!")
-            display_game_info(best_id, df_games, None, None)
+            display_game_info(best_id, df_games)
         else:
             st.warning("Nenhum resultado definitivo foi encontrado.")
 
@@ -444,23 +459,22 @@ def main():
             "Painel de dados"
         ],
         key="main_menu"
-        
     )
     
     # reiniciar st.session_state.chosen_id ao mudar de menu para evitar mostrar detalhes de um jogo anterior
     st.session_state.chosen_id = None
     
-    page = st.session_state.get("main_menu", "Por característica")
+    st.session_state.page = st.session_state.get("main_menu", "Por característica")
     
     # -- MENU 1: ID --
-    if page == "Buscar por ID":
+    if st.session_state.page == "Buscar por ID":
         wanted_id = st.selectbox("Digite o ID do jogo:", options=df_games.index.tolist())
         #wanted_id = 444
         if st.button("Buscar"):
             st.session_state.chosen_id = wanted_id
 
     # -- MENU 2: NOME PARECIDO --
-    elif page == "Buscar por nome parecido":
+    elif st.session_state.page == "Buscar por nome parecido":
         query = st.text_input("Digite o nome ou parte do nome do jogo:")
         if query:
             matches = find_similar(query, df_games["name"].tolist(), limit=10)
@@ -470,12 +484,12 @@ def main():
                 st.session_state.chosen_id = selected_id
 
     # -- MENU 3: JOGO ALEATÓRIO --
-    elif page == "Jogo aleatório":
+    elif st.session_state.page == "Jogo aleatório":
         if st.button("Sortear jogo"):
             st.session_state.chosen_id = valid_random_game(df_games)
             
     # -- MENU 4: POR CARACTERÍSTICA --
-    elif page == "Por característica":
+    elif st.session_state.page == "Por característica":
         st.session_state.setdefault("characteristic_ids", [])
         search_text = st.text_input("Buscar característica:")
         filtered_characteristics = [c for c in all_characteristics if search_text.lower() in c.lower()] if search_text else all_characteristics
@@ -512,13 +526,12 @@ def main():
                 format_func=lambda x: f"{x} {df_games.at[x, 'name']} ({df_games.at[x, 'year']}) - rank {df_games.at[x, 'rank_global']}" if x in df_games.index else str(x)
             )
                 
-
     # -- MENU 5: AKINATOR --
-    elif page == "Akinator":
+    elif st.session_state.page == "Akinator":
         run_akinator(df_games, all_characteristics)
     
     # -- MENU 6: PAINEL DE DADOS --
-    elif page == "Painel de dados":
+    elif st.session_state.page == "Painel de dados":
         st.subheader("Filtrar jogos")
         
         
@@ -640,12 +653,13 @@ def main():
         if columns_to_show:
             st.dataframe(df_filtered[columns_to_show].sort_values("rank_global"), use_container_width=True)
 
+    # -- MENU 7: EXIBIÇÃO DE DETALHES DO JOGO --
+    elif st.session_state.page == "Exibição de detalhes do jogo":
+        display_game_info(st.session_state.chosen_id, df_games)
         
     if st.session_state.chosen_id:
-        display_game_info(st.session_state.chosen_id, df_games, list_mechs, list_themes)
+        display_game_info(st.session_state.chosen_id, df_games)
 
-    
-        
     
     
 if __name__ == "__main__":
