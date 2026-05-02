@@ -50,6 +50,55 @@ def build_characteristic_lists(df_games: pd.DataFrame):
     #st.write(all_characteristics)
     return mech_labels, theme_labels, subdomain_labels, family_labels, all_characteristics
 
+def similar_caracteristics(df_games, column, wanted_list, title, key_prefix, min_common=2, top_n=5):
+    wanted_list = [w.strip() for w in wanted_list if w and isinstance(w, str)]
+    if not wanted_list:
+        st.info("Nenhuma característica selecionada.")
+        return pd.DataFrame()
+
+    def count_common(x):
+        if pd.isna(x):
+            return 0
+        values = [v.strip() for v in x.split(",")]
+        return sum(1 for w in wanted_list if w in values)
+
+    df_similar = df_games.copy()
+    df_similar["common_count"] = df_similar[column].apply(count_common)
+    df_similar = df_similar[df_similar["common_count"] >= min_common]
+    df_similar = df_similar.sort_values("common_count", ascending=False)
+
+    st.subheader(title)
+
+    if df_similar.empty:
+        st.write("Nenhum jogo similar com pelo menos 2 características em comum.")
+        return df_similar
+
+    # Mostra as características do jogo buscado em 3 colunas
+    col1, col2, col3 = st.columns(3)
+    for i, value in enumerate(wanted_list):
+        target = col1 if i % 3 == 0 else col2 if i % 3 == 1 else col3
+        target.write(f"- {value}")
+
+    # Exibe jogos similares
+    for game in df_similar.head(top_n).itertuples():
+        game_values = [v.strip() for v in getattr(game, column).split(",") if v.strip()]
+        colored_values = ", ".join(
+            f'<span style="color:blue">{v}</span>' if v in wanted_list else v
+            for v in game_values
+        )
+
+        left, right = st.columns([0.05, 0.95])
+        with right:
+            st.markdown(
+                f"{game.name} ({game.year}) - {colored_values}",
+                unsafe_allow_html=True,
+            )
+        with left:
+            if st.checkbox("", key=f"{key_prefix}_{game.Index}"):
+                st.session_state.chosen_id = game.Index
+
+    return df_similar
+
 def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
     if wanted_id not in df_games.index:
         st.info("ID não encontrado. Por favor, escolha um ID válido.")
@@ -84,32 +133,67 @@ def display_game_info(wanted_id: int, df_games, list_mechs, list_themes):
         if "image" in df_games.columns:
             col3.image(game["image"], width=300)
             
-        st.subheader("Mecânicas e jogos similares")
-        wanted_mechs = df_games.mechanic[df_games.index == wanted_id].tolist()[0]
-        for mech in wanted_mechs.split(","):
-            st.write(f'- {mech.strip()}')
-        similar_mechs_mask = df_games['mechanic'].str.contains(wanted_mechs.split(",")[0].strip(), na=False)
-        st.write(df_games[similar_mechs_mask][['name', 'year', 'mechanic']].head(5))
-        
-        # falta marcar em azul os similares
-        st.subheader("Temas e jogos similares")
-        wanted_themes = df_games.category[df_games.index == wanted_id].tolist()[0]
-        for theme in wanted_themes.split(","):
-            st.write(f'- {theme.strip()}')
-        similar_themes_mask = df_games['category'].str.contains(wanted_themes.split(",")[0].strip(), na=False)
-        st.write(df_games[similar_themes_mask][['name', 'year', 'category']].head(5))
+        wanted_mechs = df_games.at[wanted_id, "mechanic"]
+        wanted_mechs_list = [m.strip() for m in wanted_mechs.split(",") if m.strip()]
+        similar_caracteristics(
+            df_games,
+            column="mechanic",
+            wanted_list=wanted_mechs_list,
+            title="Mecânicas e jogos similares",
+            key_prefix="similar_mech",
+        )
+
+        wanted_themes = df_games.at[wanted_id, "category"]
+        wanted_themes_list = [t.strip() for t in wanted_themes.split(",") if t.strip()]
+        similar_caracteristics(
+            df_games,
+            column="category",
+            wanted_list=wanted_themes_list,
+            title="Temas e jogos similares",
+            key_prefix="similar_theme",
+        )
+
+        wanted_designers = df_games.at[wanted_id, "designer"]
+        wanted_designers_list = [d.strip() for d in wanted_designers.split(",") if d.strip()]
+        similar_caracteristics(
+            df_games,
+            column="designer",
+            wanted_list=wanted_designers_list,
+            title="Designers e jogos similares",
+            key_prefix="similar_designer",
+        )
+
+        wanted_artists = df_games.at[wanted_id, "artist"]
+        wanted_artists_list = [a.strip() for a in wanted_artists.split(",") if a.strip()]
+        similar_caracteristics(
+            df_games,
+            column="artist",
+            wanted_list=wanted_artists_list,
+            title="Artistas e jogos similares",
+            key_prefix="similar_artist",
+        )
             
-        st.subheader("Família")
-        wanted_family = df_games.family[df_games.index == wanted_id].tolist()[0]
-        for family in wanted_family.split(","):
-            st.write(f'- {family.strip()}')
+        wanted_family = df_games.at[wanted_id, "family"]
+        wanted_family_list = [f.strip() for f in wanted_family.split(",") if f.strip()]
+        similar_caracteristics(
+            df_games,
+            column="family",
+            wanted_list=wanted_family_list,
+            title="Famílias e jogos similares",
+            key_prefix="similar_family",
+        )
         
-        st.subheader("Subdomínios")
-        wanted_subdomains = df_games.domain[df_games.index == wanted_id].tolist()[0]
-        for sub in wanted_subdomains.split(","):
-            st.write(f'- {sub.strip()}')
-            
-        #incluir link
+        wanted_subdomains = df_games.at[wanted_id, "domain"]
+        wanted_subdomains_list = [s.strip() for s in wanted_subdomains.split(",") if s.strip()]
+        similar_caracteristics(
+            df_games,
+            column="domain",
+            wanted_list=wanted_subdomains_list,
+            title="Subdomínios e jogos similares",
+            key_prefix="similar_subdomain",
+        )
+
+
 
 def init_akinator_state(df_games, all_characteristics):
     df_total = df_games.copy()
@@ -429,8 +513,7 @@ def main():
             )
                 
 
-       # -- MENU 5: AKINATOR --
-    
+    # -- MENU 5: AKINATOR --
     elif page == "Akinator":
         run_akinator(df_games, all_characteristics)
     
