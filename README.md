@@ -17,7 +17,24 @@ Uma interface interativa em Streamlit para descobrir jogos de tabuleiro usando d
 - Python 3.9+
 - Poetry ([Instalar Poetry](https://python-poetry.org/docs/#installation))
 
-### Setup Rápido
+### Setup com uv
+
+```bash
+uv init
+uv venv
+source .venv/Scripts/activate
+
+uv add streamlit
+uv add pandas
+uv add rapidfuzz
+uv run streamlit run streamlit_app.py
+```
+
+```bash
+deactivate #para finalizar o ambiente virtual
+```
+
+### Setup com poetry
 
 ```bash
 # Clonar o repositório
