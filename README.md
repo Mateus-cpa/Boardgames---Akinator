@@ -1,101 +1,85 @@
-# 🎲 Boardgame Akinator
+# 🎲 Boardgame Akinator (Ludonator)
 
-Uma interface interativa em Streamlit para descobrir jogos de tabuleiro usando dados do BoardGameGeek.
+Uma interface interativa em Streamlit para descobrir e explorar jogos de tabuleiro usando dados do BoardGameGeek.
 
 ## Funcionalidades
 
-- Buscar por ID
-- Buscar por nome parecido
-- Jogo aleatório
-- Por mecânica ou tema
-- Akinator (modo experimental)
+- **Buscar por ID**: Encontre informações detalhadas de um jogo específico através do seu ID no BGG.
+- **Buscar por nome parecido**: Pesquisa difusa (fuzzy search) para encontrar jogos mesmo sem saber o nome exato.
+- **Jogo aleatório**: Sorteia um jogo válido da base de dados.
+- **Por característica**: Navegue por jogos filtrando por mecânica, tema, família, subdomínio, designer ou artista.
+- **Ludonator (modo experimental)**: Tenta adivinhar ou encontrar um jogo ideal para você com base em uma série de perguntas sobre características desejadas.
+- **Painel de dados**: Seção de análise com filtros avançados (ano, peso, jogadores, etc.) e gráficos de distribuição interativos.
 
 ## Instalação
 
 ### Pré-requisitos
 
-- Python 3.9+
-- Poetry ([Instalar Poetry](https://python-poetry.org/docs/#installation))
+- Python 3.10+
+- [uv](https://github.com/astral-sh/uv) (gerenciador de dependências de alta performance)
 
 ### Setup com uv
 
-```bash
-uv init
-uv venv
-source .venv/Scripts/activate
-
-uv add streamlit
-uv add pandas
-uv add rapidfuzz
-uv run streamlit run streamlit_app.py
-```
-
-```bash
-deactivate #para finalizar o ambiente virtual
-```
-
-### Setup com poetry
+O projeto agora utiliza o `uv` para o gerenciamento de dependências. 
 
 ```bash
 # Clonar o repositório
 git clone https://github.com/Mateus-cpa/Boardgames---Akinator.git
 cd Boardgames---Akinator
 
-# Instalar dependências e criar ambiente virtual
-poetry install
-
-# Ativar o ambiente virtual
-poetry shell
+# Sincronizar as dependências e criar o ambiente virtual
+uv sync
 
 # Executar a aplicação
-streamlit run streamlit_app.py
+uv run streamlit run streamlit_app.py
 ```
 
 A aplicação estará disponível em: `http://localhost:8501`
 
-### Comandos Úteis
+### Comandos Úteis com uv
 
 ```bash
-# Executar sem ativar shell
-poetry run streamlit run streamlit_app.py
-
 # Adicionar nova dependência
-poetry add package_name
+uv add package_name
 
 # Remover dependência
-poetry remove package_name
+uv remove package_name
 
 # Atualizar dependências
-poetry update
+uv lock --upgrade
 ```
 
 ## Dados Necessários
-Coloque o arquivo 5k version.xlsx na pasta database
 
-Colunas esperadas:
+Coloque o arquivo `5k version.xlsx` na pasta `database/`.
 
-- id (índice)
-- name
-- mechanic
-- category
-- family
-- domain
-- Outras: rank, year, minplayers, maxplayers, average_rating
+Colunas esperadas no Excel:
+
+- `id` (índice)
+- `name`
+- `mechanic`
+- `category`
+- `family`
+- `domain`
+- `designer`
+- `artist`
+- Outras: `rank_global`, `year`, `minplayers`, `maxplayers`, `average_weight`, `minplaytime`, `maxplaytime`, `age`, `description`, `image`.
 
 ## Tecnologias
 
-Streamlit
-Pandas
-RapidFuzz
-Kagglehub
+- [Streamlit](https://streamlit.io/)
+- [Pandas](https://pandas.pydata.org/)
+- [RapidFuzz](https://github.com/maxbachmann/RapidFuzz)
+- Kagglehub
 
-## Estrutura
-```
+## Estrutura do Projeto
+
+```text
 Boardgames---Akinator/
-├── streamlit_app.py
-├── pyproject.toml
-├── poetry.lock
-├── README.md
+├── streamlit_app.py      # Aplicação principal
+├── pyproject.toml        # Metadados e dependências
+├── uv.lock               # Lockfile do uv
+├── README.md             # Documentação
 └── database/
-    └── 5k version.xlsx
+    └── 5k version.xlsx   # Base de dados (não inclusa no repositório)
 ```
